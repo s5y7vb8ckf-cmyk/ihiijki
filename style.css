@@ -758,3 +758,48 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif!important}
   body.milo-browser-print #receipt.print-receipt[data-paper="58"] .receipt-items .item-main {font-size:11px!important;}
   body.milo-browser-print #receipt.print-receipt .receipt-footer {margin-bottom:0!important;padding-bottom:0!important;}
 }
+
+/* 3.4.8 -- align off-screen print measurement with compact printed receipt.
+   It fixes the exaggerated browser-paper height estimate without scaling text. */
+.milo-print-measure{
+  width:80mm!important;
+  height:auto!important;
+  min-height:0!important;
+}
+.milo-print-measure #receipt.print-receipt{
+  box-sizing:border-box!important;
+  padding:1mm 1.5mm 2mm!important;
+  margin:0!important;
+  width:var(--receipt-width,76mm)!important;
+  max-width:var(--receipt-width,76mm)!important;
+  min-height:0!important;
+  height:auto!important;
+  font-family:Tahoma,Arial,sans-serif!important;
+  transform:none!important;
+}
+.milo-print-measure #receipt .receipt-inner{
+  width:100%!important;height:auto!important;min-height:0!important;
+  font-family:Tahoma,Arial,sans-serif!important;
+  font-size:12px!important;line-height:1.42!important;
+  padding:0!important;margin:0!important;
+}
+.milo-print-measure #receipt .receipt-items td,
+.milo-print-measure #receipt .receipt-items th{font-size:11px!important;padding:1.4mm .6mm!important}
+.milo-print-measure #receipt .receipt-items .item-main{font-size:12px!important}
+.milo-print-measure #receipt .receipt-head{padding:0 0 2mm!important}
+.milo-print-measure #receipt .receipt-head h2{font-size:17px!important;line-height:1.3!important;margin:0 0 1mm!important}
+.milo-print-measure #receipt .receipt-badge{padding:0!important;margin:1mm 0!important}
+.milo-print-measure #receipt .milo-order-number{padding:1.5mm 2mm!important;margin:2mm 0!important}
+.milo-print-measure #receipt .milo-order-number strong{font-size:24px!important;line-height:1.2!important}
+.milo-print-measure #receipt .receipt-box{padding:2mm 0!important;margin:1mm 0 2mm!important}
+.milo-print-measure #receipt .receipt-grid{gap:1.5mm 2mm!important}
+.milo-print-measure #receipt .receipt-rule{margin:2mm 0 1mm!important}
+.milo-print-measure #receipt .receipt-summary .rline{margin:1mm 0!important;padding:0!important;font-size:11px!important}
+.milo-print-measure #receipt .receipt-summary .receipt-strong{margin:2mm 0!important;padding:1.5mm 0!important}
+.milo-print-measure #receipt .qr-area{margin:2mm auto .5mm!important;padding:0!important}
+.milo-print-measure #receipt .qr-area svg{width:26mm!important;height:26mm!important}
+.milo-print-measure #receipt .receipt-footer{margin:2mm 0 0!important;padding:2mm 0 0!important}
+.milo-print-measure #receipt[data-paper="58"] .receipt-items td,
+.milo-print-measure #receipt[data-paper="58"] .receipt-items th{font-size:10px!important}
+.milo-print-measure #receipt[data-paper="58"] .receipt-items .item-main{font-size:11px!important}
+.milo-print-measure #receipt[data-paper="58"] .qr-area svg{width:24mm!important;height:24mm!important}

@@ -377,9 +377,10 @@ function prepareContinuousBrowserPage(html,paper){
     heightPx=Math.max(receipt.scrollHeight,content.scrollHeight,content.getBoundingClientRect().height);
   }finally{holder.remove()}
   if(!Number.isFinite(heightPx)||heightPx<=0)throw Error('تعذر حساب طول الفاتورة');
-  // Browser CSS px are 96/in. Keep a small safety tail for print metrics and cutter,
-  // rather than 23% + 18mm which wasted paper and encouraged scale-to-fit on long receipts.
-  const pageMm=Math.max(45,Math.ceil(heightPx*25.4/96*1.09+7));
+  // Measure with the same compact receipt typography used for printing.
+  // Do not add percentage-based slack; that caused large blank tails on long receipts.
+  // Three mm is reserved for thermal printer feeding/cutting tolerances.
+  const pageMm=Math.max(32,Math.ceil(heightPx*25.4/96+3));
   let style=document.getElementById('milo-continuous-page-rule');
   if(!style){style=document.createElement('style');style.id='milo-continuous-page-rule';document.head.append(style)}
   style.textContent=`@page {size:${rollMm}mm ${pageMm}mm; margin:0} @media print {html,body{width:${rollMm}mm!important;min-height:0!important;height:auto!important;overflow:visible!important} body.milo-browser-print #receipt.print-receipt{margin:0!important;break-after:avoid!important;page-break-after:avoid!important}}`;
@@ -408,12 +409,12 @@ function queueReceiptHtml(html,paper,options={}){
      el.outerHTML=task.html;
      document.body.classList.add('milo-browser-print');
      try {
-       if(!sessionStorage.getItem('milo_print_browser_hint_347')){
-         sessionStorage.setItem('milo_print_browser_hint_347','1');
+       if(!sessionStorage.getItem('milo_print_browser_hint_348')){
+         sessionStorage.setItem('milo_print_browser_hint_348','1');
          toast('لإخفاء رابط الموقع والوقت: في نافذة الطباعة افتح «مزيد من الإعدادات» وألغِ «الرؤوس والتذييلات»، واضبط المقياس 100% (فعلي).');
        }
-       prepareContinuousBrowserPage(task.html,task.paper);
        if(document.fonts?.ready)await document.fonts.ready;
+       prepareContinuousBrowserPage(task.html,task.paper);
        await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
        window.print();
      } finally {
