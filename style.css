@@ -733,3 +733,8 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif!important}
 .account-blocked-card h1{font-size:26px;margin:8px 0 12px;color:#203b39}
 .account-blocked-card p{line-height:1.8}.account-blocked-hint{font-size:13px;color:#758783;margin-bottom:24px}
 @media print{.account-blocked-screen{display:none!important}}
+
+/* 3.4.5: off-screen measurement must not change app layout or appear in print. */
+.milo-print-measure{position:fixed!important;left:-15000px!important;top:0!important;width:max-content!important;opacity:0!important;pointer-events:none!important;z-index:-1!important;display:block!important;overflow:visible!important}
+.milo-print-measure #receipt.print-receipt{display:block!important;position:static!important;max-height:none!important;height:auto!important;overflow:visible!important;transform:none!important}
+@media print{.milo-print-measure{display:none!important}}

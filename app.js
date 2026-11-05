@@ -353,6 +353,37 @@ function printReceipt(invoice,fromHistory=false,manual=false,justSold=false){con
  $('receipt').innerHTML=`<div class="receipt-inner"><div class="receipt-head">${receiptLogoHtml()}<h2>${esc(seller)}</h2>${addr?`<div class="receipt-sub">${esc(addr)}</div>`:''}${phone?`<div class="receipt-sub">${esc(phone)}</div>`:''}<div class="receipt-badge">${manual?'طلب يدوي غير محاسبي':validVat?'فاتورة ضريبية مبسطة':'إيصال مبيعات'}</div>${vat&&!manual?`<div class="receipt-sub milo-vat-at-top">الرقم الضريبي: ${esc(vat)}</div>`:''}<div class="milo-order-number"><span>رقم الطلب</span><strong>${esc(orderNumber(invoice))}</strong></div></div><div class="receipt-box"><div class="receipt-grid"><div><span>رقم ${manual?'الطلب':'الفاتورة'}</span><b class="milo-invoice-public-no" dir="ltr">${esc(manual?orderNumber(invoice):printedInvoiceNumber(invoice))}</b></div><div><span>التاريخ</span><b class="milo-receipt-datetime" dir="ltr">${esc(vDate(invoice.date))}</b></div><div><span>طريقة الدفع</span><b>${esc(payLabel)}</b></div>${invoice.customer?`<div><span>العميل</span><b>${esc(invoice.customer)}</b></div>`:''}</div></div><table class="receipt-items"><thead><tr><th>الصنف</th><th>ك</th><th>السعر</th><th>الإجمالي</th></tr></thead><tbody>${rows}</tbody></table>${manual?`<div class="receipt-rule"></div><div class="receipt-note">${esc(invoice.notes||'')}</div>`:`<div class="receipt-rule"></div><div class="receipt-summary"><div class="rline"><span>المجموع الفرعي</span><b>${amt(invoice.subtotal)}</b></div>${n(invoice.discount)>0?`<div class="rline"><span>الخصم</span><b>${amt(invoice.discount)}</b></div>`:""}<div class="rline"><span>ضريبة القيمة المضافة (15% ضمن السعر)</span><b>${amt(invoice.vat)}</b></div><div class="receipt-tax-note">الأسعار شاملة ضريبة القيمة المضافة</div><div class="rline receipt-strong"><span>الإجمالي المستحق</span><b>${amt(invoice.total)}</b></div><div class="rline"><span>نقدًا</span><b>${amt(cash)}</b></div><div class="rline"><span>شبكة</span><b>${amt(card)}</b></div>${n(invoice.change)>0?`<div class="rline"><span>الباقي للعميل</span><b>${amt(invoice.change)}</b></div>`:""}</div>${validVat&&prefs.showQr?receiptQrSvg(invoice,seller,vat):''}${validVat&&prefs.showQr?'<div class="qr-caption">رمز QR ضريبي</div>':''}`}<div class="receipt-footer">${esc(state.settings.footer||'شكرًا لزيارتكم')}</div></div>`;
  return queueReceiptHtml($('receipt').outerHTML,width,{kitchen:!manual&&!fromHistory&&state.settings.restaurant_mode==='restaurant'&&prefs.kitchen?invoice:null,drawer:justSold&&(prefs.drawer==='all'||(prefs.drawer==='cash'&&cash>0))});
 }
+// Browser thermal roll: supply a per-job page height instead of @page size:auto.
+// CSS page size is a request to Chrome/Edge and can still be overridden by the driver.
+function prepareContinuousBrowserPage(html,paper){
+  const rollMm=paper==='58'?58:80;
+  const printableMm=paper==='58'?54:76;
+  const holder=document.createElement('div');
+  holder.className='milo-print-measure';
+  holder.setAttribute('aria-hidden','true');
+  holder.innerHTML=html;
+  document.body.append(holder);
+  const receipt=holder.querySelector('#receipt');
+  let heightPx=0;
+  try{
+    if(!receipt)throw Error('لا يمكن قياس محتوى الفاتورة');
+    receipt.style.setProperty('display','block','important');
+    receipt.style.setProperty('width',printableMm+'mm','important');
+    receipt.style.setProperty('height','auto','important');
+    receipt.style.setProperty('max-height','none','important');
+    receipt.style.setProperty('overflow','visible','important');
+    // Detect wrapping, expanded item rows, QR and footer rather than estimating by item count.
+    const content=receipt.querySelector('.receipt-inner')||receipt;
+    heightPx=Math.max(receipt.scrollHeight,content.scrollHeight,content.getBoundingClientRect().height);
+  }finally{holder.remove()}
+  if(!Number.isFinite(heightPx)||heightPx<=0)throw Error('تعذر حساب طول الفاتورة');
+  // Browser CSS px are 96/in; leave spare room for different print font metrics and cutting.
+  const pageMm=Math.max(85,Math.ceil(heightPx*25.4/96*1.23+18));
+  let style=document.getElementById('milo-continuous-page-rule');
+  if(!style){style=document.createElement('style');style.id='milo-continuous-page-rule';document.head.append(style)}
+  style.textContent=`@page {size:${rollMm}mm ${pageMm}mm; margin:0} @media print {html,body{width:${rollMm}mm!important;min-height:0!important;height:auto!important;overflow:visible!important} body.milo-browser-print #receipt.print-receipt{margin:0!important;break-after:avoid!important;page-break-after:avoid!important}}`;
+  return pageMm;
+}
 function queueReceiptHtml(html,paper,options={}){
  const tasks=[{html,paper}];if(options.kitchen)tasks.push({html:kitchenTicketHtml(options.kitchen,paper),paper});
  // Jobs must run in order, not concurrently: a second job can otherwise collide with the first.
@@ -375,7 +406,14 @@ function queueReceiptHtml(html,paper,options={}){
      const el=$('receipt');if(!el)throw Error('عنصر الفاتورة غير موجود');
      el.outerHTML=task.html;
      document.body.classList.add('milo-browser-print');
-     try { window.print(); } finally { document.body.classList.remove('milo-browser-print'); }
+     try {
+       prepareContinuousBrowserPage(task.html,task.paper);
+       if(document.fonts?.ready)await document.fonts.ready;
+       await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+       window.print();
+     } finally {
+       document.body.classList.remove('milo-browser-print');
+     }
      // Unlike the native job callback, window.print() has no reliable completion
      // notification across browsers. The delay is for browser-only fallback.
      await new Promise(resolve=>setTimeout(resolve,800));
