@@ -738,3 +738,23 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif!important}
 .milo-print-measure{position:fixed!important;left:-15000px!important;top:0!important;width:max-content!important;opacity:0!important;pointer-events:none!important;z-index:-1!important;display:block!important;overflow:visible!important}
 .milo-print-measure #receipt.print-receipt{display:block!important;position:static!important;max-height:none!important;height:auto!important;overflow:visible!important;transform:none!important}
 @media print{.milo-print-measure{display:none!important}}
+
+/* MILO 3.4.7: stable thermal type size. No shrink-to-fit transformations from app CSS.
+   Driver/browser scale must also be set to actual size (100%). */
+@media print {
+  @page { margin: 0; }
+  html,body { padding:0!important;margin:0!important;overflow:visible!important; }
+  body.milo-browser-print #receipt.print-receipt {
+    scale:1!important; zoom:1!important;
+    margin:0!important; min-height:0!important; height:auto!important;
+    overflow:visible!important;
+  }
+  body.milo-browser-print #receipt.print-receipt .receipt-inner {font-size:12px!important;line-height:1.42!important;}
+  body.milo-browser-print #receipt.print-receipt .receipt-items td,
+  body.milo-browser-print #receipt.print-receipt .receipt-items th {font-size:11px!important;}
+  body.milo-browser-print #receipt.print-receipt .receipt-items .item-main {font-size:12px!important;}
+  body.milo-browser-print #receipt.print-receipt[data-paper="58"] .receipt-items td,
+  body.milo-browser-print #receipt.print-receipt[data-paper="58"] .receipt-items th {font-size:10px!important;}
+  body.milo-browser-print #receipt.print-receipt[data-paper="58"] .receipt-items .item-main {font-size:11px!important;}
+  body.milo-browser-print #receipt.print-receipt .receipt-footer {margin-bottom:0!important;padding-bottom:0!important;}
+}
