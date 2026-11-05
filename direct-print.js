@@ -14,7 +14,7 @@
     if(!root) throw Error('لم يتم العثور على بيانات الفاتورة');
     const width = paperWidth(paper);
     const pad = paper==='58' ? 18 : 24;
-    let y=12;
+    let y=0;
     const cvs=document.createElement('canvas');cvs.width=width;
     const ctx=cvs.getContext('2d',{willReadFrequently:true});
     ctx.fillStyle='#fff';ctx.fillRect(0,0,width,200);
@@ -80,7 +80,7 @@
     const qr=root.querySelector('.qr-area svg');
     if(qr){ops.push({type:'qr',svg:qr.outerHTML,y});y+=paper==='58'?200:220;}
     if(foot)line(foot.textContent,21,false,'center',3);
-    const height=Math.ceil(y+26);
+    const height=Math.ceil(y+12);
     cvs.height=height;
     const c=cvs.getContext('2d',{willReadFrequently:true});
     c.fillStyle='white';c.fillRect(0,0,width,height);c.fillStyle='black';c.textBaseline='top';
@@ -161,14 +161,31 @@
     }
     return out;
   }
+  // Crop only fully white bitmap rows from the beginning of the receipt.
+  // Avoids blank leading paper without shrinking text or cutting printed content.
+  function firstInkRow(canvas){
+    const ctx=canvas.getContext('2d',{willReadFrequently:true});
+    const pixels=ctx.getImageData(0,0,canvas.width,canvas.height).data;
+    const w=canvas.width;
+    for(let y=0;y<canvas.height;y++){
+      for(let x=0;x<w;x++){
+        const i=(y*w+x)*4;
+        const intensity=(pixels[i]*299+pixels[i+1]*587+pixels[i+2]*114)/1000;
+        if(pixels[i+3]>100 && intensity<168)return y;
+      }
+    }
+    return 0;
+  }
   async function printTask(task){
     if(!usb&&!serial)throw Error('اختر توصيل USB أو Serial من الإعدادات أولاً');
     status('جارٍ تجهيز الفاتورة...');
     const canvas=await rasterize(task.html,task.paper);
-    // Initial state, then stream raster stripes as *one* receipt; do not send page breaks.
+    // Initialize with no leading feed. Start at first printed raster row.
     await write(Uint8Array.from([0x1b,0x40,0x1b,0x61,0x00]));
-    for(let y=0;y<canvas.height;y+=192){await write(rasterRows(canvas,y,Math.min(192,canvas.height-y)));}
-    await write(Uint8Array.from([0x1b,0x64,0x03,0x1d,0x56,0x00]));
+    const top=firstInkRow(canvas);
+    for(let y=top;y<canvas.height;y+=192){await write(rasterRows(canvas,y,Math.min(192,canvas.height-y)));}
+    // One short feed before the single final cut; no page breaks.
+    await write(Uint8Array.from([0x1b,0x64,0x01,0x1d,0x56,0x00]));
     status('أُرسلت الفاتورة كاملة للطابعة.');
   }
   document.addEventListener('click',async ev=>{
