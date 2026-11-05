@@ -73,5 +73,14 @@
 </div>
 <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
 <div id="receipt" class="print-receipt" aria-hidden="true"></div>
+<section id="accountBlockedScreen" class="account-blocked-screen hidden" role="alertdialog" aria-modal="true" aria-labelledby="accountBlockedTitle" dir="rtl">
+  <div class="account-blocked-card"><div class="account-blocked-mark" aria-hidden="true">!</div>
+    <p class="account-blocked-brand">MILO CASHIER</p>
+    <h1 id="accountBlockedTitle">تم إيقاف الحساب</h1>
+    <p id="accountBlockedReason">تم إغلاق الحساب أو إيقاف اشتراك المتجر. يرجى التواصل مع إدارة النظام.</p>
+    <p class="account-blocked-hint">تم إيقاف استخدام الكاشير على هذا الجهاز. لم تُحذف البيانات المحلية.</p>
+    <button type="button" class="btn primary" onclick="location.reload()">إعادة التحقق</button>
+  </div>
+</section>
 </body>
 </html>

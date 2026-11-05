@@ -26,7 +26,7 @@ function chooseReceiptLogo(file){
    img.onload=()=>{try{const canvas=document.createElement('canvas');const scale=Math.min(1,320/Math.max(img.width,img.height));canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,0,0,canvas.width,canvas.height);const data=canvas.toDataURL('image/jpeg',.72);if(data.length>330000)throw Error('حجم الشعار بعد التحويل كبير');localStorage.setItem('milo_receipt_logo',data);resolve()}catch(err){reject(err)}};img.src=String(reader.result)};reader.readAsDataURL(file);
  });
 }
-const printPrefs=()=>({paper:localStorage.getItem('milo_paper')||state.paper||'80',mode:'browser',showQr:(localStorage.getItem('milo_print_show_qr')||'1')!=='0',fontScale:localStorage.getItem('milo_receipt_font')||'normal',align:localStorage.getItem('milo_receipt_align')||'center',footer:localStorage.getItem('milo_receipt_footer_style')||'center',margin:Math.min(8,Math.max(0,Number(localStorage.getItem('milo_receipt_margin')||'2'))),kitchen:(localStorage.getItem('milo_kitchen_print')||'1')==='1',shiftReport:(localStorage.getItem('milo_shift_print')||'1')==='1',drawer:localStorage.getItem('milo_drawer_mode')||'never',receiptOffset:Math.min(8,Math.max(-8,Number(localStorage.getItem('milo_receipt_offset')??'1')))});
+const printPrefs=()=>({paper:localStorage.getItem('milo_paper')||state.paper||'80',mode:'browser',showQr:(localStorage.getItem('milo_print_show_qr')||'1')!=='0',fontScale:localStorage.getItem('milo_receipt_font')||'normal',align:localStorage.getItem('milo_receipt_align')||'center',footer:localStorage.getItem('milo_receipt_footer_style')||'center',margin:Math.min(8,Math.max(0,Number(localStorage.getItem('milo_receipt_margin')||'2'))),kitchen:(localStorage.getItem('milo_kitchen_print')||'1')==='1',shiftReport:(localStorage.getItem('milo_shift_print')||'1')==='1',drawer:localStorage.getItem('milo_drawer_mode')||'never',receiptOffset:Math.min(8,Math.max(-8,Number(localStorage.getItem('milo_receipt_offset')??'2')))});
 // Browser edition: always use the browser print dialog; no Electron print driver.
 const isStandalone=()=>window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;
 function renderBrowserInstallNotice(force=false){if(window.miloDesktop?.isDesktop||location.hostname==='127.0.0.1'&&location.port==='37941'){document.getElementById('installBrowserNotice')?.remove();return;}const host=document.querySelector('.workspace');if(!host)return;let box=$('installBrowserNotice');const canInstall=document.body.dataset.canInstall==='1';const shouldShow=!isStandalone()&&(canInstall||force);if(!shouldShow){if(box)box.remove();return;}if(!box){box=document.createElement('div');box.id='installBrowserNotice';box.className='install-browser-notice';host.insertBefore(box,host.firstChild);}box.innerHTML=`<div class="install-browser-card"><div class="install-browser-icon">⬇</div><div class="install-browser-body"><strong>يُفضّل تثبيت كاشير ميلو كتطبيق</strong><small>لتحصل على تجربة أسرع وثبات أفضل وإمكانية تشغيل الطباعة المخصصة على جهاز الكاشير.</small></div><div class="install-browser-actions"><button type="button" class="btn primary small" id="installFromBanner">تحميل التطبيق</button><button type="button" class="btn outline small" id="dismissInstallBanner">لاحقًا</button></div></div>`;$('installFromBanner')?.addEventListener('click',()=>$('installAppButton')?.click());$('dismissInstallBanner')?.addEventListener('click',()=>box.remove());}
@@ -34,7 +34,8 @@ function enforceBrowserHardening(){window.addEventListener('contextmenu',e=>e.pr
 
 const menus=[['sale','نقطة البيع','cart'],['products','المنتجات','package'],['invoices','الفواتير','receipt'],['reports','التقارير','chart'],['inventory','المخزون','boxes'],['customers','العملاء','users'],['suppliers','الموردون','truck'],['purchases','المشتريات','shopping-bag'],['purchaseItems','بنود المشتريات','list'],['expenses','المصروفات','wallet'],['vouchers','السندات','file-text'],['returns','المرتجعات','undo'],['promotions','العروض','tag'],['employees','الموظفون','user-cog'],['shifts','الورديات','clock'],['manual','طلبات يدوية','clipboard'],['devices','الأجهزة','monitor'],['support','الدعم','headphones'],['settings','الإعدادات','settings'],['account','حسابي','user']];
 const titles=Object.fromEntries(menus.map(x=>[x[0],x[1]]));
-let handler=null,toastTimer=null,pollTimer=null;
+let handler=null,toastTimer=null,pollTimer=null,accountCheckTimer=null,accountCheckInFlight=false,accountCheckLastAt=0;
+const ACCOUNT_CHECK_EVERY_MS=60000;
 // أصوات محلية اختيارية؛ لا تعتمد على الإنترنت أو ملفات صوتية خارجية.
 const soundEnabled=()=>localStorage.getItem('milo_product_sound')==='1';
 const errorSoundEnabled=()=>localStorage.getItem('milo_error_sound')!=='0';
@@ -73,7 +74,7 @@ function confirmModal(title,description,task){showModal(title,`<p>${esc(descript
 async function request(payload,{timeoutMs=23000}={}){if(!navigator.onLine)throw Error('الجهاز بلا اتصال. يُمنع الحفظ حتى الاتصال بالخادم.');const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
  try{const response=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},redirect:'follow',credentials:'omit',body:JSON.stringify(payload),signal:controller.signal});if(!response.ok)throw Error('تعذر الوصول إلى تطبيق الويب (HTTP '+response.status+'). تحقق من صلاحيات النشر.');const txt=await response.text();let result;try{result=JSON.parse(txt)}catch{throw Error('لم يرجع الخادم JSON؛ قد يكون رابط النشر أو صلاحياته غير صحيحة.')}if(!result||result.ok!==true)throw Error(result?.message||'رفض الخادم تنفيذ الطلب.');connection(true,'متصل · مزامنة مباشرة');state.lastPing=Date.now();return result;
  }catch(e){connection(false,'الاتصال غير مؤكد');if(e?.name==='AbortError')throw Error('انتهت مهلة الطلب. حالة العملية غير مؤكدة، لا تنشئ فاتورة جديدة قبل التحقق.');if(e instanceof TypeError)throw Error('فشل الاتصال برابط Apps Script؛ افحص صلاحيات النشر وقيود CORS في المتصفح.');throw e}finally{clearTimeout(timer)}}
-async function api(action,body={}){if(!state.auth)throw Error('سجّل الدخول أولًا.');return request({action,username:state.auth.username,password:state.auth.password,...body})}
+async function api(action,body={}){if(state.accountLocked)throw Error('الحساب موقوف. يرجى التواصل مع إدارة النظام.');if(!state.auth)throw Error('سجّل الدخول أولًا.');return request({action,username:state.auth.username,password:state.auth.password,...body})}
 function isConnectionFailure(error){const msg=String(error?.message||error||'');return navigator.onLine===false||/بلا اتصال|انتهت مهلة|فشل الاتصال|تعذر الاتصال بالخادم|تعذر الوصول|الإنترنت|HTTP 502|fetch|network|Failed to fetch|Load failed|NetworkError|timed out/i.test(msg)}
 function canDisplaySale(){return state.page==='sale'&&$('modal')?.classList.contains('hidden')===true}
 async function updateQueueBadge(){
@@ -191,11 +192,61 @@ async function retryPendingInvoice(id){const x=await MiloLocal.get(id);if(!x||x.
  x.status='pending';x.lastError='';await MiloLocal.save(x);closeModal();await syncNow({manual:true});await showSyncQueue();
 }
 
-async function authenticate(username,password){const resp=await request({action:'login',username,password});state.auth={username,password};state.account=resp.account;state.settings={store_name:resp.account?.storeName||'',vat_number:resp.account?.vatNumber||'',phone:resp.account?.phone||'',address:resp.account?.address||'',footer:'شكرًا لزيارتكم',restaurant_mode:'retail'};$('loginScreen').classList.add('hidden');$('app').classList.remove('hidden');$('storeTitle').textContent=resp.account.storeName||'متجر ميلو';$('userName').textContent=resp.account.ownerName||resp.account.username||'حساب المتجر';$('accountMenuOwner').textContent=resp.account.ownerName||resp.account.username||'حساب المتجر';$('accountMenuStore').textContent=resp.account.storeName||'إدارة الحساب';renderBrowserInstallNotice();$('mainNav').innerHTML=menus.map(([key,title,ico],idx)=>{
+// Account status is revalidated against the existing Apps Script login action.
+// A temporary network failure must NEVER be mistaken for a suspended account.
+const inactiveAccountStates=new Set(['closed','disabled','suspended','blocked','inactive','deactivated','expired','terminated','locked','مغلق','موقوف','معطل','معطّل','محظور','منتهي']);
+function isAccountRevoked(account){
+ if(!account||typeof account!=='object')return false;
+ for(const value of [account.status,account.accountStatus,account.subscriptionStatus,account.state]){
+  if(typeof value==='string'&&inactiveAccountStates.has(value.trim().toLowerCase()))return true;
+ }
+ return account.isActive===false||account.active===false||account.enabled===false||account.isClosed===true||account.isSuspended===true;
+}
+function isExplicitRevocationMessage(message){
+ const text=String(message||'').trim();
+ return /(?:الحساب|الاشتراك|المتجر).{0,36}(?:مغلق|موقوف|معط[ّ]?ل|محظور|منتهي|تم إيقافه|غير نشط)|(?:account|subscription|store).{0,36}(?:closed|suspended|disabled|blocked|deactivated|expired|inactive)/i.test(text);
+}
+function lockAccount(message){
+ if(state.accountLocked)return;
+ state.accountLocked=true;
+ clearInterval(pollTimer);clearInterval(accountCheckTimer);
+ // Do not clear or delete unsynchronized local data.
+ state.auth=null;
+ $('app')?.classList.add('hidden');$('loginScreen')?.classList.add('hidden');
+ const panel=$('accountBlockedScreen');
+ if(panel){$('accountBlockedReason').textContent=message||'تم إيقاف الحساب أو إغلاق اشتراك المتجر. يرجى التواصل مع إدارة النظام.';panel.classList.remove('hidden');}
+ connection(false,'الحساب موقوف');
+}
+async function checkAccountStatus(){
+ if(!state.auth||state.accountLocked||accountCheckInFlight||!navigator.onLine)return;
+ accountCheckInFlight=true;accountCheckLastAt=Date.now();
+ const credentials={...state.auth};
+ try{
+  const result=await request({action:'login',username:credentials.username,password:credentials.password},{timeoutMs:15000});
+  if(!state.auth||state.auth.username!==credentials.username||state.accountLocked)return;
+  if(isAccountRevoked(result.account)||isAccountRevoked(result)){
+   lockAccount('تم إيقاف الحساب أو إغلاق الاشتراك من إدارة النظام. يرجى التواصل مع المسؤول.');return;
+  }
+  if(result.account){state.account={...state.account,...result.account};}
+ }catch(err){
+  if(!state.auth||state.accountLocked)return;
+  if(isExplicitRevocationMessage(err.message))lockAccount(err.message);
+  // Transient timeouts and offline errors retain the session; server must also
+  // reject revoked accounts on every privileged API operation.
+ }finally{accountCheckInFlight=false;}
+}
+function startAccountChecks(){
+ clearInterval(accountCheckTimer);
+ accountCheckTimer=setInterval(()=>{void checkAccountStatus()},ACCOUNT_CHECK_EVERY_MS);
+}
+document.addEventListener('visibilitychange',()=>{
+ if(document.visibilityState==='visible'&&state.auth&&Date.now()-accountCheckLastAt>=ACCOUNT_CHECK_EVERY_MS)void checkAccountStatus();
+});
+async function authenticate(username,password){const resp=await request({action:'login',username,password});if(isAccountRevoked(resp.account)||isAccountRevoked(resp))throw Error('الحساب موقوف أو مغلق. يرجى التواصل مع إدارة النظام.');state.accountLocked=false;$('accountBlockedScreen')?.classList.add('hidden');state.auth={username,password};state.account=resp.account;state.settings={store_name:resp.account?.storeName||'',vat_number:resp.account?.vatNumber||'',phone:resp.account?.phone||'',address:resp.account?.address||'',footer:'شكرًا لزيارتكم',restaurant_mode:'retail'};$('loginScreen').classList.add('hidden');$('app').classList.remove('hidden');$('storeTitle').textContent=resp.account.storeName||'متجر ميلو';$('userName').textContent=resp.account.ownerName||resp.account.username||'حساب المتجر';$('accountMenuOwner').textContent=resp.account.ownerName||resp.account.username||'حساب المتجر';$('accountMenuStore').textContent=resp.account.storeName||'إدارة الحساب';renderBrowserInstallNotice();$('mainNav').innerHTML=menus.map(([key,title,ico],idx)=>{
   const group=idx===0?'الرئيسية':idx===4?'المخزون والتشغيل':idx===8?'الإدارة المالية':idx===14?'الإدارة والنظام':'';
   return (group?`<div class="side-group-label sidebar-label">${group}</div>`:'')+`<button type="button" data-page="${key}" class="side-link ${key==='sale'?'active':''}" title="${esc(title)}" aria-label="${esc(title)}"><span class="side-icon" aria-hidden="true">${MiloIcons.svg(ico)}</span><span class="sidebar-label">${esc(title)}</span></button>`;
- }).join('');await MiloLocal.requestDurableStorage();await restoreCachedSnapshots();await refreshCore();await cacheCoreSnapshots();await showPage(document.body.dataset.initialPage||'sale');await updateQueueBadge();void deviceEvent('open');clearInterval(pollTimer);pollTimer=setInterval(()=>{void syncNow();if(document.visibilityState==='visible')void deviceEvent('heartbeat')},120000);void syncNow()}
-function logout(){closeAccountMenu();if(state.auth)void deviceEvent('close');clearInterval(pollTimer);state.auth=null;state.account=null;state.products=[];state.reports=[];state.cart=[];state.held=[];state.pendingInvoice=null;$('app').classList.add('hidden');$('loginScreen').classList.remove('hidden');$('loginPass').value='';$('loginError').textContent='';connection(false,'غير مسجل');closeModal()}
+ }).join('');await MiloLocal.requestDurableStorage();await restoreCachedSnapshots();await refreshCore();await cacheCoreSnapshots();await showPage(document.body.dataset.initialPage||'sale');await updateQueueBadge();void deviceEvent('open');clearInterval(pollTimer);pollTimer=setInterval(()=>{void syncNow();if(document.visibilityState==='visible')void deviceEvent('heartbeat')},120000);startAccountChecks();void syncNow()}
+function logout(){closeAccountMenu();if(state.auth)void deviceEvent('close');clearInterval(pollTimer);clearInterval(accountCheckTimer);state.auth=null;state.account=null;state.products=[];state.reports=[];state.cart=[];state.held=[];state.pendingInvoice=null;$('app').classList.add('hidden');$('loginScreen').classList.remove('hidden');$('loginPass').value='';$('loginError').textContent='';connection(false,'غير مسجل');closeModal()}
 async function deviceEvent(type){if(!state.auth)return;try{await api('saveDeviceEvents',{events:[{storeCode:state.account.storeCode,eventId:uid(),deviceCode:deviceCode(),deviceName:state.terminalName,eventType:type,occurredAt:dateTime(),details:'MILO browser'}]})}catch(_){}}
 async function refreshCore(){const settled=await Promise.allSettled([api('products'),api('getStoreSettings'),api('customers'),api('suppliers'),api('shifts')]);const [pr,st,cu,su,sh]=settled;if(pr.status==='fulfilled'){state.products=pr.value.products||[];state.productsRevision=pr.value.productsRevision||'';}if(st.status==='fulfilled')state.settings={...state.settings,...st.value.settings};if(cu.status==='fulfilled')state.customers=cu.value.customers||[];if(su.status==='fulfilled')state.suppliers=su.value.suppliers||[];if(sh.status==='fulfilled')state.shifts=sh.value.shifts||[];state.activeShift=state.shifts.find(x=>!x.closed_at&&String(x.terminal)===terminalId())||null;if(pr.status==='rejected')toast('تعذّر تحديث المنتجات؛ ستبقى البيانات المحفوظة على الجهاز. '+pr.reason.message,true);await cacheCoreSnapshots()}
 async function showPage(page){if(!titles[page])page='sale';state.page=page;document.querySelectorAll('[data-page]').forEach(el=>el.classList.toggle('active',el.dataset.page===page));$('content').innerHTML='<div class="panel empty">جارٍ تحميل البيانات...</div>';try{const lookup={sale:renderSale,products:renderProductsPage,invoices:renderInvoicesPage,reports:renderReportsPage,inventory:renderInventoryPage,customers:()=>renderEntityPage('customers'),suppliers:()=>renderEntityPage('suppliers'),purchases:()=>renderEntityPage('purchases'),purchaseItems:()=>renderEntityPage('purchaseItems'),expenses:()=>renderEntityPage('expenses'),vouchers:()=>renderEntityPage('vouchers'),returns:()=>renderEntityPage('returns'),promotions:()=>renderEntityPage('promotions'),employees:()=>renderEntityPage('employees'),shifts:renderShiftsPage,manual:renderManualPage,devices:renderDevicesPage,support:renderSupportPage,settings:renderSettingsPage,account:renderAccountPage};await lookup[page]();renderBrowserInstallNotice()}catch(e){hdr(titles[page]);$('content').innerHTML=info(e.message,'danger');toast(e.message,true)}}

@@ -718,8 +718,18 @@ body{font-family:'Cairo',Tahoma,Arial,sans-serif!important}
 @media print{
  @page{size:auto;margin:0;}
  html,body{height:auto!important;min-height:0!important;overflow:visible!important;}
- body.milo-browser-print #receipt.print-receipt{box-sizing:border-box!important;width:var(--receipt-width,76mm)!important;max-width:var(--receipt-width,76mm)!important;padding:1mm 1.5mm 2mm!important;margin:0 auto!important;height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important;transform:none!important;}
+ body.milo-browser-print #receipt.print-receipt{box-sizing:border-box!important;width:var(--receipt-width,76mm)!important;max-width:var(--receipt-width,76mm)!important;padding:1mm 1.5mm 2mm!important;margin:0 auto!important;height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important;transform:translateX(var(--receipt-offset,2mm))!important;}
  body.milo-browser-print #receipt .receipt-inner{height:auto!important;max-height:none!important;overflow:visible!important;break-inside:auto!important;}
  body.milo-browser-print #receipt .receipt-items{break-inside:auto!important;page-break-inside:auto!important;}
  body.milo-browser-print #receipt .receipt-items tr,body.milo-browser-print #receipt .receipt-summary,body.milo-browser-print #receipt .qr-area,body.milo-browser-print #receipt .receipt-footer{break-inside:avoid!important;page-break-inside:avoid!important;}
 }
+
+/* MILO 3.4.3 – account suspension screen, independent of page content. */
+.account-blocked-screen{position:fixed;inset:0;z-index:999999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#eef5f4,#e8eeee);padding:24px;direction:rtl;text-align:center}
+.account-blocked-screen.hidden{display:none!important}
+.account-blocked-card{max-width:460px;width:100%;background:#fff;border-radius:22px;padding:38px 28px;box-shadow:0 24px 80px #153a3720;border:1px solid #dfebea}
+.account-blocked-mark{width:56px;height:56px;border-radius:50%;margin:0 auto 18px;display:grid;place-items:center;background:#fff2ef;color:#b83e2b;font-size:32px;font-weight:800}
+.account-blocked-brand{font-size:12px;color:#647875;letter-spacing:2px;font-weight:700}
+.account-blocked-card h1{font-size:26px;margin:8px 0 12px;color:#203b39}
+.account-blocked-card p{line-height:1.8}.account-blocked-hint{font-size:13px;color:#758783;margin-bottom:24px}
+@media print{.account-blocked-screen{display:none!important}}
