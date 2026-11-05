@@ -13,14 +13,13 @@
     const root = doc.querySelector('#receipt');
     if(!root) throw Error('لم يتم العثور على بيانات الفاتورة');
     const width = paperWidth(paper);
-    const pad = paper==='58' ? 18 : 24;
+    const pad = paper==='58' ? 12 : 16;
     let y=0;
     const cvs=document.createElement('canvas');cvs.width=width;
     const ctx=cvs.getContext('2d',{willReadFrequently:true});
-    ctx.fillStyle='#fff';ctx.fillRect(0,0,width,200);
     ctx.fillStyle='#000';ctx.textBaseline='top';
     const ops=[];
-    function line(text,size=24,bold=false,align='center',gap=6){
+    function line(text,size=26,bold=false,align='center',gap=4){
       if(text==null || String(text).trim()==='')return;
       const raw=String(text).replace(/\s+/g,' ').trim();
       ctx.font=`${bold?'bold ':''}${size}px Tahoma, Arial, sans-serif`;
@@ -32,55 +31,65 @@
         if(E(parts[last]+' '+word,ctx)<=maxWidth)parts[last]+=' '+word;
         else parts.push(word);
       }
-      for(const piece of parts){
-        const hh=Math.ceil(size*1.42);
+      const lines=[];
+      for (const piece of parts) {
+        if (E(piece,ctx)<=maxWidth) {lines.push(piece); continue;}
+        let fragment='';
+        for (const char of piece) {
+          if (fragment && E(fragment+char,ctx)>maxWidth) {lines.push(fragment); fragment=char;}
+          else fragment+=char;
+        }
+        if (fragment) lines.push(fragment);
+      }
+      for(const piece of lines){
+        const hh=Math.ceil(size*1.23);
         ops.push({type:'text',text:piece,y,height:hh,size,bold,align});
         y+=hh;
       }
-      y+=gap;
+      y+=Math.min(gap,4);
     }
-    function rule(){ops.push({type:'rule',y});y+=12;}
+    function rule(){ops.push({type:'rule',y});y+=8;}
     const top=root.querySelector('.receipt-head');
     if(top){
-      const head=top.querySelector('h2'); if(head)line(head.textContent,30,true);
-      top.querySelectorAll('.receipt-sub, .receipt-badge, .milo-vat-at-top').forEach(el=>line(el.textContent,19,false));
-      const order=top.querySelector('.milo-order-number strong'); if(order){line('رقم الطلب',20);line(order.textContent,40,true);}
+      const head=top.querySelector('h2'); if(head)line(head.textContent,36,true);
+      top.querySelectorAll('.receipt-sub, .receipt-badge, .milo-vat-at-top').forEach(el=>line(el.textContent,23,false));
+      const order=top.querySelector('.milo-order-number strong'); if(order){line('رقم الطلب',23);line(order.textContent,46,true);}
     }
     rule();
     const metadata=root.querySelector('.receipt-box');
     if(metadata){
-      metadata.querySelectorAll('.receipt-grid > div').forEach(el=>line(el.textContent,17,false,'right',2));
-      if(!metadata.querySelector('.receipt-grid'))line(metadata.textContent,18,false,'right');
+      metadata.querySelectorAll('.receipt-grid > div').forEach(el=>line(el.textContent,21,false,'right',2));
+      if(!metadata.querySelector('.receipt-grid'))line(metadata.textContent,21,false,'right');
     }
     rule();
     const rows=root.querySelectorAll('.receipt-items tbody tr');
     if(rows.length){
-      line('الأصناف',23,true);
+      line('الأصناف',27,true);
       rows.forEach(row=>{
         const cells=[...row.querySelectorAll('td')];
         if(!cells.length)return;
         const name=(cells[0].querySelector('.item-main')?.textContent||cells[0].textContent||'').trim();
         const qty=(cells[1]?.textContent||'').trim();
         const total=(cells[cells.length-1]?.textContent||'').trim();
-        line(name,22,true,'right',1);
-        line(`الكمية: ${qty}${cells.length>2 ? '    الإجمالي: '+total : ''}`,19,false,'right',6);
+        line(name,27,true,'right',1);
+        line(`الكمية: ${qty}${cells.length>2 ? '    الإجمالي: '+total : ''}`,23,false,'right',3);
       });
     }
     rule();
     const summary=root.querySelector('.receipt-summary');
-    if(summary){summary.querySelectorAll('.rline').forEach(el=>line(el.textContent.replace(/\s+/g,' '),el.classList.contains('receipt-strong')?25:19,el.classList.contains('receipt-strong'),'right',3));}
+    if(summary){summary.querySelectorAll('.rline').forEach(el=>line(el.textContent.replace(/\s+/g,' '),el.classList.contains('receipt-strong')?30:23,el.classList.contains('receipt-strong'),'right',3));}
     root.querySelectorAll('.milo-shift-group').forEach(group=>{
       const heading=group.querySelector('.milo-shift-group-title');
-      if(heading)line(heading.textContent,23,true);
-      group.querySelectorAll('.milo-shift-row').forEach(row=>line(row.textContent,20,false,'right',3));
+      if(heading)line(heading.textContent,27,true);
+      group.querySelectorAll('.milo-shift-row').forEach(row=>line(row.textContent,23,false,'right',2));
       rule();
     });
     const foot=root.querySelector('.receipt-footer,.milo-shift-end');
-    const note=root.querySelector('.receipt-note');if(note)line(note.textContent,19);
+    const note=root.querySelector('.receipt-note');if(note)line(note.textContent,23);
     const qr=root.querySelector('.qr-area svg');
     if(qr){ops.push({type:'qr',svg:qr.outerHTML,y});y+=paper==='58'?200:220;}
-    if(foot)line(foot.textContent,21,false,'center',3);
-    const height=Math.ceil(y+12);
+    if(foot)line(foot.textContent,25,false,'center',2);
+    const height=Math.ceil(y+5);
     cvs.height=height;
     const c=cvs.getContext('2d',{willReadFrequently:true});
     c.fillStyle='white';c.fillRect(0,0,width,height);c.fillStyle='black';c.textBaseline='top';
